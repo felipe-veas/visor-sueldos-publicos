@@ -18,3 +18,4 @@ jobs:
           # This assumes a standard Python project structure.
           # It will look for setup.py, pyproject.toml, etc. to bump versions.
           release-type: python
+          package-name: public_salary_monitor
