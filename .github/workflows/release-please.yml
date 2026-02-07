@@ -13,9 +13,9 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      - uses: googleapis/release-please-action@v4
         with:
-          # This assumes a standard Python project structure.
-          # It will look for setup.py, pyproject.toml, etc. to bump versions.
-          release-type: python
-          package-name: public_salary_monitor
+          # This action requires a GitHub Token (PAT) with 'repo' scope
+          # or 'contents:write' and 'pull_requests:write' permissions
+          # if 'workflow permissions' in repository settings are not enough.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
