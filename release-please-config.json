@@ -1,8 +1,7 @@
 {
   "packages": {
     ".": {
-      "release-type": "python",
-      "package-name": "public_salary_monitor"
+      "release-type": "python"
     }
   }
 }
