@@ -1,0 +1,46 @@
+name: Python Application
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies with uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        source $HOME/.cargo/env
+        uv pip install -r pyproject.toml . # Install dependencies + the project itself in editable mode if desired
+        # Or just install dependencies directly
+        uv pip install ".[dev]" # If dev dependencies existed
+        uv pip install -r requirements.txt || true # Fallback if requirements exist
+        uv pip install pandas requests tqdm openpyxl streamlit duckdb plotly # Explicit install if needed for now
+
+    - name: Lint with flake8
+      run: |
+        uv pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
+        uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Test with pytest
+      run: |
+        uv pip install pytest
+        uv run pytest tests/
