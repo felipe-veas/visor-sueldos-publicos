@@ -211,3 +211,6 @@ data/metadata_cache.json
 data/TA_PersonalContrata.csv
 data/TA_PersonalContratohonorarios.csv
 data/TA_PersonalPlanta.csv
+
+# OS generated files
+.DS_Store
