@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.3.0...v0.3.1) (2026-03-10)
+
+
+### Bug Fixes
+
+* remediate SQL injection vulnerabilities ([ea10299](https://github.com/felipe-veas/visor-sueldos-publicos/commit/ea10299c88cc9fc63e5fc8d32a131035eda200f8))
+
 ## [0.3.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.2.0...v0.3.0) (2026-02-07)
 
 
