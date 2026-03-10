@@ -6,6 +6,7 @@ import os
 def generate_unified_sql(valid_paths):
     """Generates a UNION ALL query for all available files."""
     subqueries = []
+    params = []
 
     # Mapping of key concepts to normalize column names across files
     # Keys are the target column aliases (kept in Spanish for Frontend/SQL consistency)
@@ -36,8 +37,8 @@ def generate_unified_sql(valid_paths):
         # Detect real columns in the file
         try:
             # Read only the header (limit 0) to check columns
-            schema_query = f"SELECT * FROM read_csv('{path}', delim=';', encoding='latin-1', ignore_errors=true) LIMIT 0"
-            df_schema = duckdb.query(schema_query).to_df()
+            schema_query = "SELECT * FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true) LIMIT 0"
+            df_schema = duckdb.query(schema_query, params=[path]).to_df()
             real_cols = set(df_schema.columns)
         except Exception:
             continue
@@ -54,13 +55,14 @@ def generate_unified_sql(valid_paths):
 
         # Build the subquery for this file
         subqueries.append(
-            f"SELECT {', '.join(selects)} FROM read_csv('{path}', delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)"
+            f"SELECT {', '.join(selects)} FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)"
         )
+        params.append(path)
 
     if not subqueries:
-        return ""
+        return "", []
 
-    return " UNION ALL ".join(subqueries)
+    return " UNION ALL ".join(subqueries), params
 
 
 def render_audit_ui(data_dir, urls_config):
@@ -119,8 +121,6 @@ def render_audit_ui(data_dir, urls_config):
             index=0,
         )
 
-    where_audit_month = f"AND Mes = '{audit_month}'"
-
     with tab1:
         st.subheader("Detección de Multiempleo Simultáneo")
         st.write(
@@ -129,7 +129,7 @@ def render_audit_ui(data_dir, urls_config):
 
         if st.button("🔍 Escanear Multiempleo"):
             with st.spinner("Cruzando bases de datos..."):
-                base_sql = generate_unified_sql(paths)
+                base_sql, params = generate_unified_sql(paths)
                 if not base_sql:
                     st.error("No hay datos.")
                 else:
@@ -155,20 +155,24 @@ def render_audit_ui(data_dir, urls_config):
                             LIST(DISTINCT organismo) as lista_organismos,
                             LIST(DISTINCT Origen) as tipos_contrato
                         FROM limpios
-                        WHERE anyo_int = {audit_year} {where_audit_month}
+                        WHERE anyo_int = ? AND Mes = ?
                         GROUP BY 1, 2, 3
                         HAVING num_empleos > 1
                     )
                     SELECT * FROM conteo ORDER BY sueldo_total DESC LIMIT 100
                     """
                     try:
-                        df = duckdb.query(query).to_df()
+                        df = duckdb.query(
+                            query, params=params + [audit_year, audit_month]
+                        ).to_df()
                         if not df.empty:
                             st.error(f"🚨 {len(df)} casos detectados.")
                             df["sueldo_total"] = df["sueldo_total"].apply(
-                                lambda x: f"$ {x:,.0f}".replace(",", "X")
-                                .replace(".", ",")
-                                .replace("X", ".")
+                                lambda x: (
+                                    f"$ {x:,.0f}".replace(",", "X")
+                                    .replace(".", ",")
+                                    .replace("X", ".")
+                                )
                             )
                             st.dataframe(
                                 df,
@@ -188,7 +192,7 @@ def render_audit_ui(data_dir, urls_config):
         st.subheader("Ranking Nacional de Sueldos")
         if st.button("🏆 Generar Ranking"):
             with st.spinner("Analizando..."):
-                base_sql = generate_unified_sql(paths)
+                base_sql, params = generate_unified_sql(paths)
                 if base_sql:
                     query = f"""
                     SELECT
@@ -198,15 +202,19 @@ def render_audit_ui(data_dir, urls_config):
                         Origen,
                         cargo
                     FROM ({base_sql})
-                    WHERE sueldo_num IS NOT NULL AND TRY_CAST(anyo AS INTEGER) = {audit_year} {where_audit_month}
+                    WHERE sueldo_num IS NOT NULL AND TRY_CAST(anyo AS INTEGER) = ? AND Mes = ?
                     ORDER BY sueldo_num DESC
                     LIMIT 100
                     """
-                    df = duckdb.query(query).to_df()
+                    df = duckdb.query(
+                        query, params=params + [audit_year, audit_month]
+                    ).to_df()
                     df["sueldo_num"] = df["sueldo_num"].apply(
-                        lambda x: f"$ {x:,.0f}".replace(",", "X")
-                        .replace(".", ",")
-                        .replace("X", ".")
+                        lambda x: (
+                            f"$ {x:,.0f}".replace(",", "X")
+                            .replace(".", ",")
+                            .replace("X", ".")
+                        )
                     )
                     st.dataframe(df, use_container_width=True)
 
@@ -220,7 +228,7 @@ def render_audit_ui(data_dir, urls_config):
 
         if st.button("🔍 Buscar Clanes"):
             with st.spinner("Agrupando apellidos..."):
-                base_sql = generate_unified_sql(paths)
+                base_sql, params = generate_unified_sql(paths)
                 if base_sql:
                     # Exclude common surnames in Chile to reduce noise
                     common_surnames = "'GONZALEZ', 'MUÑOZ', 'ROJAS', 'DIAZ', 'PEREZ', 'SOTO', 'CONTRERAS', 'SILVA', 'MARTINEZ', 'SEPULVEDA'"
@@ -233,21 +241,25 @@ def render_audit_ui(data_dir, urls_config):
                         SUM(TRY_CAST(regexp_replace(replace(CAST(sueldo AS VARCHAR), '.', ''), '[^0-9]', '', 'g') AS BIGINT)) as costo_mensual_total
                     FROM ({base_sql})
                     WHERE
-                        TRY_CAST(anyo AS INTEGER) = {audit_year}
-                        {where_audit_month}
+                        TRY_CAST(anyo AS INTEGER) = ?
+                        AND Mes = ?
                         AND length(Paterno) > 2
                         AND upper(Paterno) NOT IN ({common_surnames})
                     GROUP BY 1, 2
-                    HAVING cantidad_personas >= {min_repeats}
+                    HAVING cantidad_personas >= ?
                     ORDER BY cantidad_personas DESC
                     LIMIT 100
                     """
-                    df = duckdb.query(query).to_df()
+                    df = duckdb.query(
+                        query, params=params + [audit_year, audit_month, min_repeats]
+                    ).to_df()
                     if not df.empty:
                         df["costo_mensual_total"] = df["costo_mensual_total"].apply(
-                            lambda x: f"$ {x:,.0f}".replace(",", "X")
-                            .replace(".", ",")
-                            .replace("X", ".")
+                            lambda x: (
+                                f"$ {x:,.0f}".replace(",", "X")
+                                .replace(".", ",")
+                                .replace("X", ".")
+                            )
                         )
                         st.dataframe(df, use_container_width=True)
                     else:
@@ -263,7 +275,7 @@ def render_audit_ui(data_dir, urls_config):
 
         if st.button("📈 Detectar Atípicos"):
             with st.spinner("Calculando estadísticas por estamento..."):
-                base_sql = generate_unified_sql(paths)
+                base_sql, params = generate_unified_sql(paths)
                 if base_sql:
                     query = f"""
                     WITH base AS (
@@ -273,7 +285,7 @@ def render_audit_ui(data_dir, urls_config):
                             upper(trim(COALESCE(Nombres,'')) || ' ' || trim(COALESCE(Paterno,'')) || ' ' || trim(COALESCE(Materno,''))) as nombre,
                             TRY_CAST(regexp_replace(replace(CAST(sueldo AS VARCHAR), '.', ''), '[^0-9]', '', 'g') AS BIGINT) as sueldo_num
                         FROM ({base_sql})
-                        WHERE TRY_CAST(anyo AS INTEGER) = {audit_year} {where_audit_month}
+                        WHERE TRY_CAST(anyo AS INTEGER) = ? AND Mes = ?
                     ),
                     stats AS (
                         SELECT
@@ -300,13 +312,17 @@ def render_audit_ui(data_dir, urls_config):
                     ORDER BY veces_promedio DESC
                     LIMIT 100
                     """
-                    df = duckdb.query(query).to_df()
+                    df = duckdb.query(
+                        query, params=params + [audit_year, audit_month]
+                    ).to_df()
 
                     for col in ["sueldo", "promedio_estamento"]:
                         df[col] = df[col].apply(
-                            lambda x: f"$ {x:,.0f}".replace(",", "X")
-                            .replace(".", ",")
-                            .replace("X", ".")
+                            lambda x: (
+                                f"$ {x:,.0f}".replace(",", "X")
+                                .replace(".", ",")
+                                .replace("X", ".")
+                            )
                         )
 
                     st.dataframe(df, use_container_width=True)

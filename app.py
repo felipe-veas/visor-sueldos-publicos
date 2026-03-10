@@ -132,13 +132,13 @@ def get_available_years(file_path):
     try:
         current_year = datetime.date.today().year
 
-        query = f"""
+        query = """
         SELECT DISTINCT anyo
-        FROM read_csv('{file_path}', delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
-        WHERE TRY_CAST(anyo AS INTEGER) BETWEEN 2000 AND {current_year + 1}
+        FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
+        WHERE TRY_CAST(anyo AS INTEGER) BETWEEN 2000 AND ?
         ORDER BY anyo DESC
         """
-        df = duckdb.query(query).to_df()
+        df = duckdb.query(query, params=[file_path, current_year + 1]).to_df()
         year_list = sorted(df["anyo"].astype(int).tolist(), reverse=True)
 
         # 3. Save to cache for next time
@@ -162,12 +162,12 @@ def get_organizations(file_path, _version=3):
         return global_cache[base_name]["organismos"]
 
     try:
-        query = f"""
+        query = """
         SELECT DISTINCT organismo_nombre
-        FROM read_csv('{file_path}', delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
+        FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
         ORDER BY organismo_nombre
         """
-        df = duckdb.query(query).to_df()
+        df = duckdb.query(query, params=[file_path]).to_df()
         org_list = df["organismo_nombre"].tolist()
 
         # Save to cache
@@ -188,16 +188,17 @@ def quick_query(
 
     # Build WHERE clause
     conditions = []
+    query_params = []
 
     # 1. Organization Filter
     if organization:
-        org_sql = organization.replace("'", "''")
-        conditions.append(f"organismo_nombre = '{org_sql}'")
+        conditions.append("organismo_nombre = ?")
+        query_params.append(organization)
 
     # 2. Person Name Filter (Smart Concatenated Search)
     if person_name:
         # Clean input
-        name_clean = person_name.strip().replace("'", "''")
+        name_clean = person_name.strip()
 
         # Generate variants to handle inconsistencies (Ñ/N and Accents)
         def normalize(text):
@@ -216,10 +217,11 @@ def quick_query(
         # Build conditions: Search in the CONCATENATION of fields
         or_conditions = []
         for variant in variants:
-            filter_concat = f"""
-                (COALESCE(Nombres, '') || ' ' || COALESCE(Paterno, '') || ' ' || COALESCE(Materno, '')) ILIKE '%{variant}%'
+            filter_concat = """
+                (COALESCE(Nombres, '') || ' ' || COALESCE(Paterno, '') || ' ' || COALESCE(Materno, '')) ILIKE ?
             """
             or_conditions.append(filter_concat)
+            query_params.append(f"%{variant}%")
 
         conditions.append(f"({' OR '.join(or_conditions)})")
 
@@ -231,21 +233,23 @@ def quick_query(
             end = int(end_year)
             # Safe CAST to integer
             conditions.append(
-                f"CAST(TRY_CAST(anyo AS INTEGER) AS INTEGER) BETWEEN {start} AND {end}"
+                "CAST(TRY_CAST(anyo AS INTEGER) AS INTEGER) BETWEEN ? AND ?"
             )
+            query_params.extend([start, end])
         except Exception:
             pass  # If non-numeric text entered, ignore filter
 
     if month and month != "Todos":
-        conditions.append(f"Mes = '{month}'")
+        conditions.append("Mes = ?")
+        query_params.append(month)
 
     where_clause = " AND ".join(conditions) if conditions else "1=1"
 
     # --- DYNAMIC COLUMN LOGIC ---
     # 1. Get real columns in THIS specific file
     try:
-        schema_query = f"SELECT * FROM read_csv('{file_path}', delim=';', encoding='latin-1', ignore_errors=true) LIMIT 0"
-        schema_df = duckdb.query(schema_query).to_df()
+        schema_query = "SELECT * FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true) LIMIT 0"
+        schema_df = duckdb.query(schema_query, params=[file_path]).to_df()
         real_columns = set(schema_df.columns)
     except Exception as e:
         st.error(f"No se pudo leer la estructura del archivo: {e}")
@@ -300,14 +304,14 @@ def quick_query(
     # Main query with dynamic columns
     query = f"""
     SELECT {select_clause}
-    FROM read_csv('{file_path}', delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
+    FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
     WHERE {where_clause}
     """
 
     # Execute query
     try:
         # DuckDB is very efficient. We can bring ~50k rows to Pandas without issue.
-        df = duckdb.query(query).to_df()
+        df = duckdb.query(query, params=[file_path] + query_params).to_df()
         return df
     except Exception as e:
         st.error(f"Error en la consulta: {e}")
@@ -325,15 +329,17 @@ def get_last_record(paths_to_query, person_name):
                 if unicodedata.category(c) != "Mn"
             )
 
-        name_clean = person_name.strip().replace("'", "''")
+        name_clean = person_name.strip()
         variants = set([name_clean, normalize(name_clean)])
         if "n" in name_clean.lower():
             variants.add(name_clean.replace("n", "ñ").replace("N", "Ñ"))
 
         or_conditions = []
+        query_params = []
         for variant in variants:
-            filter_concat = f"(COALESCE(Nombres, '') || ' ' || COALESCE(Paterno, '') || ' ' || COALESCE(Materno, '')) ILIKE '%{variant}%'"
+            filter_concat = "(COALESCE(Nombres, '') || ' ' || COALESCE(Paterno, '') || ' ' || COALESCE(Materno, '')) ILIKE ?"
             or_conditions.append(filter_concat)
+            query_params.append(f"%{variant}%")
 
         where_name = f"({' OR '.join(or_conditions)})"
 
@@ -344,12 +350,12 @@ def get_last_record(paths_to_query, person_name):
             # Lightweight query just to get MAX year/month
             query = f"""
             SELECT anyo, Mes, organismo_nombre
-            FROM read_csv('{path}', delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
+            FROM read_csv(?, delim=';', encoding='latin-1', ignore_errors=true, null_padding=true)
             WHERE {where_name}
             ORDER BY anyo DESC
             LIMIT 1
             """
-            df = duckdb.query(query).to_df()
+            df = duckdb.query(query, params=[path] + query_params).to_df()
 
             if not df.empty:
                 reg = df.iloc[0]
