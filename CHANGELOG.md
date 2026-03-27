@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.3.1...v0.4.0) (2026-03-27)
+
+
+### Features
+
+* add Docker support ([548419d](https://github.com/felipe-veas/visor-sueldos-publicos/commit/548419d5b42aa7ff08f78c987bc66f76b95b7826))
+* add Docker support and refactor ETL/UI ([1bd6d9e](https://github.com/felipe-veas/visor-sueldos-publicos/commit/1bd6d9e988847740bceedadd896ee50462303c0d))
+
 ## [0.3.1](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.3.0...v0.3.1) (2026-03-10)
 
 
