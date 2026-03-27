@@ -3,6 +3,7 @@ import duckdb
 import pandas as pd
 import os
 import json
+import requests
 from src.core.config import METADATA_FILE
 
 
@@ -33,10 +34,22 @@ def unaccent_lower_python(text: str) -> str:
 
 
 def load_cache() -> dict:
-    """Loads metadata from JSON if it exists."""
+    """Loads metadata from JSON if it exists locally, otherwise fetches from GitHub."""
     if os.path.exists(METADATA_FILE):
         with open(METADATA_FILE, "r") as f:
             return json.load(f)
+
+    # Try fetching from remote release URL
+    from src.core.config import GITHUB_RELEASE_BASE_URL
+
+    remote_url = f"{GITHUB_RELEASE_BASE_URL}/metadata_cache.json"
+    try:
+        response = requests.get(remote_url, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+
     return {}
 
 

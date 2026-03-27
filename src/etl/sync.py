@@ -102,7 +102,19 @@ def check_and_sync():
 
     for name, config in DATASETS_CONFIG.items():
         url = config["url"]
-        file_path = os.path.join(DATA_DIR, config["filename"])
+
+        try:
+            from pathlib import Path
+
+            file_path_obj = Path(DATA_DIR).joinpath(config["filename"]).resolve()
+            if not str(file_path_obj).startswith(str(Path(DATA_DIR).resolve())):
+                raise ValueError(
+                    f"Invalid path traversal attempted: {config['filename']}"
+                )
+            file_path = str(file_path_obj)
+        except Exception as e:
+            logging.error(f"Path error for {name}: {e}")
+            continue
 
         logging.info(f"Checking status for {name}...")
 

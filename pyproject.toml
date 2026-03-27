@@ -20,3 +20,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/public_salary_monitor"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.8",
+]
