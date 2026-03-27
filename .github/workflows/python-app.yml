@@ -2,45 +2,47 @@ name: Python Application
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@6ee6290f1cbc4156c0bdd66691b2c144ef8df19a # v7.4.0
-      with:
-        enable-cache: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@6ee6290f1cbc4156c0bdd66691b2c144ef8df19a # v7.4.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-    - name: Set up Python 3.10
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-      with:
-        python-version: "3.10"
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
 
-    - name: Install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv pip install -r pyproject.toml
-        uv pip install -e .
-        uv pip install -r requirements.txt || true
-        uv pip install pandas requests tqdm openpyxl streamlit duckdb plotly flake8 pytest
+      - name: Install dependencies from lockfile
+        run: |
+          # Use uv to sync the environment exactly as defined in uv.lock
+          uv sync --frozen --all-extras
 
-    - name: Lint with flake8
-      run: |
-        uv run flake8 . --exclude .venv --count --select=E9,F63,F7,F82 --show-source --statistics
-        uv run flake8 . --exclude .venv --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Compile python files
+        run: |
+          uv run python -m py_compile app.py src/core/config.py src/core/queries.py src/ui/views.py src/etl/ingest.py src/etl/sync.py
 
-    - name: Test with pytest
-      run: |
-        uv run pytest tests/
+      - name: Lint with ruff
+        run: |
+          # Ruff is significantly faster and more comprehensive than flake8
+          uv run ruff check .
+          uv run ruff format --check . || true
+
+      - name: Test with pytest
+        run: |
+          # Run unit tests
+          uv run pytest tests/

@@ -1,0 +1,52 @@
+name: Sync and Publish Data to Releases
+
+on:
+  schedule:
+    # Run at 03:00 on Sunday
+    - cron: '0 3 * * 0'
+  workflow_dispatch: # Allows manual trigger from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync_and_publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Smart Sync and Parquet Ingestion
+        run: |
+          # This script downloads the CSVs if needed, then converts them to Parquet
+          # and generates the metadata_cache.json
+          uv run src/etl/sync.py
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "latest-data"
+          name: "Latest Public Salary Data"
+          body: "Automated data sync via DuckDB. Contains the latest Parquet files and metadata."
+          files: |
+            data/*.parquet
+            data/metadata_cache.json
+          # If the release exists, this action will update the assets
+          # This ensures the URLs remain static
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

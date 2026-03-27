@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "pip" # GitHub parses uv/pyproject.toml via the 'pip' identifier
     directory: "/"
     target-branch: "main"
     schedule:
@@ -15,6 +15,9 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"] # Ignorar subidas fuertes que rompan la app
     groups:
       python-minor-patch:
         patterns:
