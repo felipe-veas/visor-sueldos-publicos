@@ -1,100 +1,95 @@
 # Visor de Sueldos Públicos de Chile 🇨🇱
 
-Este repositorio contiene herramientas en Python para descargar, unificar, auditar y visualizar los datos de **Transparencia Activa** de organismos públicos de Chile (Sueldos de Planta, Contrata y Honorarios).
+Este repositorio contiene herramientas Python para descargar, unificar, auditar y visualizar datos de Transparencia Activa de instituciones públicas chilenas.
 
-El proyecto está diseñado para facilitar el análisis ciudadano y la detección de anomalías en el gasto público.
+El sistema utiliza DuckDB y Parquet para consultar más de 28GB de datos en milisegundos. Está diseñado para ejecutarse sin infraestructura backend dedicada.
 
-## Características
+## Características Principales
 
-- 📥 **Descarga Automática**: Obtiene las bases de datos oficiales actualizadas desde el Consejo para la Transparencia.
-- 🧹 **Normalización**: Unifica formatos dispares de sueldos y nombres de columnas.
-- 📊 **Visualizador Interactivo**: Aplicación web (Streamlit) para explorar sueldos por organismo, año y mes.
-- 🕵️ **Auditoría**: Módulo de inteligencia de datos que detecta:
-  - **Multiempleo**: Personas con sueldos simultáneos en múltiples organismos.
-  - **Nepotismo (apellidos)**: Concentración inusual de apellidos en un mismo servicio.
-  - **Sueldos Atípicos**: Funcionarios que ganan significativamente más que el promedio de su estamento.
+- 📥 **Smart Sync**: Consulta los servidores de transparencia y descarga archivos solo cuando los headers remotos indican cambios, reduciendo el uso de ancho de banda.
+- ⚡️ **Motor de Consultas**: Convierte 28GB de CSVs crudos a archivos `.parquet` con compresión ZSTD. Utiliza DuckDB para consultas en memoria.
+- ☁️ **Despliegue Stateless**: Arquitectura de 3 capas (MVC) diseñada para entornos contenerizados. Utiliza `httpfs` para lectura remota de archivos.
+- 📊 **Interfaz Web**: Frontend en Streamlit para filtrar salarios por institución, año y mes.
+- 🕵️ **Auditoría de Datos**: Detecta multiempleo, posible nepotismo (coincidencia de apellidos) y anomalías salariales.
 
 ## Estructura del Proyecto
 
-```
+```text
 visor-sueldos-publicos/
-├── app.py                      # Punto de entrada de la aplicación Streamlit
-├── pyproject.toml              # Configuración moderna de dependencias (uv/pip)
-├── requirements.txt            # Dependencias legado (para entornos sin uv)
+├── app.py                      # Entrypoint y router de Streamlit
+├── Dockerfile                  # Imagen Docker multi-stage
+├── uv.lock / pyproject.toml    # Gestión de dependencias
 ├── src/
-│   └── public_salary_monitor/  # Código fuente del paquete (Backend en Inglés)
-│       ├── salary_analysis.py  # Lógica de descarga y procesamiento
-│       └── audit_utils.py      # Lógica de auditoría y consultas SQL
-├── tests/                      # Pruebas automatizadas
-│   └── test_integration.py     # Script de prueba de integración
-└── data/                       # Carpeta donde se guardan los CSV descargados
+│   ├── core/                   # Lógica de negocio y base de datos
+│   │   ├── config.py           # Configuración y URLs
+│   │   └── queries.py          # Consultas SQL en DuckDB
+│   ├── etl/                    # Pipeline de datos
+│   │   ├── sync.py             # Lógica de sincronización HTTP HEAD
+│   │   └── ingest.py           # Transformación de CSV a Parquet
+│   └── ui/                     # Interfaz de usuario
+│       └── views.py            # Componentes Streamlit y gráficos Plotly
+└── .github/workflows/          # Pipelines CI/CD (Ruff, Pytest, Releases)
 ```
 
-## Instalación y Uso
+## Desarrollo Local
 
-### Opción 1: Usando `uv` (Recomendado - Moderno y Rápido) 🚀
+Utilizamos `uv` para gestionar dependencias y asegurar builds rápidos y deterministas.
 
-Si tienes `uv` instalado (el gestor de paquetes de Python ultra rápido):
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/tu-usuario/visor-sueldos-publicos.git
+cd visor-sueldos-publicos
+```
 
-1.  **Clonar el repositorio:**
-    ```bash
-    git clone https://github.com/tu-usuario/visor-sueldos-publicos.git
-    cd visor-sueldos-publicos
-    ```
-
-2.  **Crear entorno virtual e instalar dependencias:**
-    ```bash
-    uv venv
-    source .venv/bin/activate  # En Windows: .venv\Scripts\activate
-    uv pip install -r pyproject.toml
-    ```
-
-3.  **Ejecutar la aplicación:**
-    ```bash
-    uv run streamlit run app.py
-    ```
-
-### Opción 2: Usando `pip` y `venv` (Clásico) 🐢
-
-Si prefieres el método tradicional o no puedes usar `uv`:
-
-1.  **Crear entorno virtual:**
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # En Windows: venv\Scripts\activate
-    ```
-
-2.  **Instalar dependencias:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Ejecutar:**
-    ```bash
-    streamlit run app.py
-    ```
-
-## Ejecutar Pruebas
-
-Para verificar que todo funcione correctamente antes de ejecutar la app completa:
+### 2. Ejecutar el Pipeline ETL
+Debes procesar los datos públicos antes de levantar el frontend. El script de sincronización descarga los CSVs oficiales y los comprime a Parquet.
 
 ```bash
-# Con uv
-uv run python tests/test_integration.py
+# Instalar dependencias y ejecutar la sincronización
+uv run src/etl/sync.py
+```
+*(Nota: La descarga inicial de 28GB tomará tiempo dependiendo de tu conexión. Las ejecuciones posteriores toman milisegundos si los datos remotos no han cambiado).*
 
-# Con python estándar
-python tests/test_integration.py
+### 3. Levantar la Aplicación Web
+```bash
+uv run streamlit run app.py
+```
+
+## Despliegue en Producción (Docker)
+
+El repositorio incluye un `Dockerfile` listo para producción. Utiliza un build multi-stage, se ejecuta como usuario no-root y precompila el bytecode de Python.
+
+```bash
+docker build -t visor-sueldos .
+docker run -p 8501:8501 visor-sueldos
+```
+
+## Arquitectura Serverless (GitHub Releases)
+
+Por defecto, la aplicación lee del directorio local `data/`. Para ejecutarla sin volúmenes de almacenamiento dedicados, la aplicación hace fallback a URLs estáticas alojadas en GitHub Releases.
+
+1. El workflow `.github/workflows/data-sync.yml` se ejecuta semanalmente, empaqueta los archivos Parquet y los publica como un GitHub Release.
+2. Si la aplicación se ejecuta sin un directorio `data/` local, DuckDB realiza HTTP Range Requests contra las URLs del GitHub Release, obteniendo solo los bytes necesarios para la consulta.
+
+## Pruebas y Linter
+
+Ejecuta la suite de validación localmente:
+
+```bash
+# Linter
+uv run ruff check .
+
+# Pruebas unitarias
+uv run pytest tests/
 ```
 
 ## Contribución
 
-¡Las contribuciones son bienvenidas! Si encuentras un error o quieres agregar una nueva métrica de auditoría:
-
-1.  Haz un Fork del proyecto.
-2.  Crea una rama (`git checkout -b feature/nueva-auditoria`).
-3.  Haz tus cambios y commits.
-4.  Abre un Pull Request.
+1. Haz un Fork del repositorio.
+2. Crea una rama para tu feature (`git checkout -b feature/nueva-regla-auditoria`).
+3. Haz commit de tus cambios y verifícalos con `ruff`.
+4. Abre un Pull Request.
 
 ## Licencia
 
-Este proyecto es de código abierto. Si utilizas estos scripts para investigaciones periodísticas o académicas, se agradece la mención.
+Proyecto de código abierto. Si utilizas estas herramientas o arquitectura para investigación académica o periodística, se agradece la atribución.

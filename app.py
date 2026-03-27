@@ -47,11 +47,29 @@ if dataset_name == "Todas (Búsqueda Global)":
 
     # Check which files exist
     for name, info in DATASETS_CONFIG.items():
-        path = os.path.join(DATA_DIR, info["filename"])
-        if os.path.exists(path):
-            paths_to_query.append((name, path))
-        else:
-            st.sidebar.warning(f"⚠️ Falta descargar/procesar: {name}")
+        try:
+            # Prevent path traversal
+            from pathlib import Path
+
+            file_path_str = info.get("path")
+
+            # Allow remote URLs
+            if str(file_path_str).startswith("http"):
+                paths_to_query.append((name, file_path_str))
+            else:
+                # Local paths
+                path = Path(file_path_str).resolve()
+                if not str(path).startswith(str(Path(DATA_DIR).resolve())):
+                    raise ValueError(
+                        f"Invalid path traversal attempted: {info['filename']}"
+                    )
+
+                if path.exists():
+                    paths_to_query.append((name, str(path)))
+                else:
+                    st.sidebar.warning(f"⚠️ Falta descargar/procesar localmente: {name}")
+        except Exception as e:
+            st.error(f"Error cargando base de datos {name}: {e}")
 
     if not paths_to_query:
         st.error(
@@ -60,15 +78,33 @@ if dataset_name == "Todas (Búsqueda Global)":
 else:
     # Individual Mode
     dataset_info = DATASETS_CONFIG[dataset_name]
-    file_path = os.path.join(DATA_DIR, dataset_info["filename"])
-    paths_to_query = [(dataset_name, file_path)]
+    paths_to_query = []
+    try:
+        from pathlib import Path
 
-    if not os.path.exists(file_path):
-        st.warning(
-            f"El archivo '{dataset_info['filename']}' no se encuentra en el disco. Contacte al administrador para actualizar la base de datos."
-        )
-    else:
-        st.sidebar.success("Archivo cargado y listo.")
+        file_path_str = dataset_info.get("path")
+
+        # Allow remote URLs
+        if str(file_path_str).startswith("http"):
+            paths_to_query = [(dataset_name, file_path_str)]
+            st.sidebar.success("Conectado a la base de datos remota (GitHub).")
+        else:
+            file_path = Path(file_path_str).resolve()
+            if not str(file_path).startswith(str(Path(DATA_DIR).resolve())):
+                raise ValueError(
+                    f"Invalid path traversal attempted: {dataset_info['filename']}"
+                )
+
+            paths_to_query = [(dataset_name, str(file_path))]
+
+            if not file_path.exists():
+                st.warning(
+                    f"El archivo '{dataset_info['filename']}' no se encuentra en el disco."
+                )
+            else:
+                st.sidebar.success("Archivo local cargado y listo.")
+    except Exception as e:
+        st.error(f"Error cargando base de datos: {e}")
 
 # Dynamic Filters
 st.sidebar.header("2. Filtros")
