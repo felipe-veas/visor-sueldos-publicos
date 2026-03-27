@@ -207,10 +207,10 @@ marimo/_lsp/
 __marimo__/
 
 # Data
-data/metadata_cache.json
-data/TA_PersonalContrata.csv
-data/TA_PersonalContratohonorarios.csv
-data/TA_PersonalPlanta.csv
+data/
+*.csv
+*.parquet
+IMPLEMENTATION_TRACKER.md
 
 # OS generated files
 .DS_Store
