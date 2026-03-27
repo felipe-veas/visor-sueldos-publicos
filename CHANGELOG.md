@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.4.0...v0.5.0) (2026-03-27)
+
+
+### Features
+
+* refactor architecture to use Parquet and DuckDB ([e75c753](https://github.com/felipe-veas/visor-sueldos-publicos/commit/e75c75350a72b1fc06e6a6c16b20c56b7cd5c6e4))
+* refactor sync logic to use parquet and duckdb ([adcefac](https://github.com/felipe-veas/visor-sueldos-publicos/commit/adcefacf129cd83a050fc75f7beeedba938795f4))
+
+
+### Documentation
+
+* update readme with new architecture details ([d346866](https://github.com/felipe-veas/visor-sueldos-publicos/commit/d346866abe3291cfc3b6ec1853060363faabfde8))
+
 ## [0.4.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.3.1...v0.4.0) (2026-03-27)
 
 
