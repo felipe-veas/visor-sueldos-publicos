@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.5.0...v0.6.0) (2026-03-28)
+
+
+### Features
+
+* integrate senate extraction pipeline ([258c348](https://github.com/felipe-veas/visor-sueldos-publicos/commit/258c348d44e6a315ca03b4713f1d3c2907c75374))
+
+
+### Documentation
+
+* restructure technical documentation and update readme ([903a045](https://github.com/felipe-veas/visor-sueldos-publicos/commit/903a04522a9a6b210f9e0459d771da67534e9de1))
+
 ## [0.5.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.4.0...v0.5.0) (2026-03-27)
 
 
