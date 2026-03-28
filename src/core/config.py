@@ -23,23 +23,28 @@ def resolve_data_path(filename: str) -> str:
 DATASETS_CONFIG = {
     "Personal de Planta": {
         "url": "https://www.consejotransparencia.cl/transparencia_activa/datoabierto/archivos/TA_PersonalPlanta.csv",
-        "filename": "TA_PersonalPlanta.parquet",
-        "path": resolve_data_path("TA_PersonalPlanta.parquet"),
+        "filename": "parquet/TA_PersonalPlanta.parquet",
+        "path": resolve_data_path("parquet/TA_PersonalPlanta.parquet"),
     },
     "Personal a Contrata": {
         "url": "https://www.consejotransparencia.cl/transparencia_activa/datoabierto/archivos/TA_PersonalContrata.csv",
-        "filename": "TA_PersonalContrata.parquet",
-        "path": resolve_data_path("TA_PersonalContrata.parquet"),
+        "filename": "parquet/TA_PersonalContrata.parquet",
+        "path": resolve_data_path("parquet/TA_PersonalContrata.parquet"),
     },
     "Personal a Honorarios": {
         "url": "https://www.consejotransparencia.cl/transparencia_activa/datoabierto/archivos/TA_PersonalContratohonorarios.csv",
-        "filename": "TA_PersonalContratohonorarios.parquet",
-        "path": resolve_data_path("TA_PersonalContratohonorarios.parquet"),
+        "filename": "parquet/TA_PersonalContratohonorarios.parquet",
+        "path": resolve_data_path("parquet/TA_PersonalContratohonorarios.parquet"),
     },
     "Senado y Asignaciones": {
         "url": "",
-        "filename": "senado_consolidado.parquet",
-        "path": resolve_data_path("senado_consolidado.parquet"),
+        "filename": "parquet/senado_consolidado.parquet",
+        "path": resolve_data_path("parquet/senado_consolidado.parquet"),
+    },
+    "Cámara de Diputados": {
+        "url": "",
+        "filename": "parquet/diputados_consolidado.parquet",
+        "path": resolve_data_path("parquet/diputados_consolidado.parquet"),
     },
 }
 

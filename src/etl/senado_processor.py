@@ -8,12 +8,17 @@ logger = logging.getLogger("DataProcessor")
 
 
 class DataProcessor:
-    def __init__(self, cache_dir="data/raw", output_dir="data"):
+    def __init__(
+        self,
+        cache_dir="data/raw/senado",
+        output_dir="data/parquet",
+        processed_dir="data/processed/senado",
+    ):
         self.cache_dir = cache_dir
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
         # Auxiliary directory for raw/analyst outputs
-        self.processed_dir = os.path.join("data", "processed")
+        self.processed_dir = processed_dir
         os.makedirs(self.processed_dir, exist_ok=True)
 
         # Month mapping
@@ -158,11 +163,9 @@ class DataProcessor:
         )
 
         csv_path = os.path.join(self.processed_dir, "senadores_consolidado.csv")
-        excel_path = os.path.join(self.processed_dir, "senadores_consolidado.xlsx")
         df_export.to_csv(csv_path, index=False)
-        df_export.to_excel(excel_path, index=False)
 
-        logger.info(f"💾 Saved raw consolidated files in: {csv_path} and {excel_path}")
+        logger.info(f"💾 Saved raw consolidated files in: {csv_path}")
 
         # ==== Transformation to Main App Schema (DuckDB Parquet) ====
         df_app = pd.DataFrame()
@@ -198,7 +201,7 @@ class DataProcessor:
         logger.info(f"🎉 Parquet file generated for Web App: {parquet_path}")
 
         if not df_gastos.empty:
-            gastos_path = os.path.join(self.output_dir, "gastos_detalle.parquet")
+            gastos_path = os.path.join(self.output_dir, "senado_gastos_detalle.parquet")
             if "gastos_operacionales" in df_gastos.columns:
                 # Rename cols to match standard (for metadata cache script to not break)
                 df_gastos_pq = df_gastos[

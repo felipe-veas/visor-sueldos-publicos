@@ -12,7 +12,7 @@ class SenadoScraper:
         self.start_year = start_year
         self.end_year = end_year
         self.force_refresh = force_refresh
-        self.api_client = SenadoAPIClient(base_cache_dir="data/raw")
+        self.api_client = SenadoAPIClient(base_cache_dir="data/raw/senado")
         self.base_url = "https://web-back.senado.cl/api/transparency"
 
     def _build_url(

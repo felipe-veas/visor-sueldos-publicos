@@ -31,7 +31,7 @@ class SenadoAPIClient:
     Includes rate limiting (delays), exponential retries, and disk caching.
     """
 
-    def __init__(self, base_cache_dir="data/raw"):
+    def __init__(self, base_cache_dir="data/raw/senado"):
         self.base_cache_dir = base_cache_dir
         self.session = requests.Session()
 

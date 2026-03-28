@@ -79,7 +79,9 @@ def unaccent_lower_sql(col_expr):
 def process_csv_to_parquet(csv_path: str):
     """Converts a raw CSV to a standardized Parquet file."""
     base_name = os.path.basename(csv_path)
-    parquet_path = os.path.join(DATA_DIR, base_name.replace(".csv", ".parquet"))
+    parquet_dir = os.path.join(DATA_DIR, "parquet")
+    os.makedirs(parquet_dir, exist_ok=True)
+    parquet_path = os.path.join(parquet_dir, base_name.replace(".csv", ".parquet"))
 
     if os.path.exists(parquet_path):
         logging.info(f"Parquet file {parquet_path} already exists. Skipping.")
@@ -190,11 +192,12 @@ def main():
 def generate_metadata_cache():
     import json
 
+    parquet_dir = os.path.join(DATA_DIR, "parquet")
     metadata_file = os.path.join(DATA_DIR, "metadata_cache.json")
     logging.info("Generating global metadata cache...")
 
     conn = duckdb.connect()
-    parquet_files = glob.glob(os.path.join(DATA_DIR, "*.parquet"))
+    parquet_files = glob.glob(os.path.join(parquet_dir, "*.parquet"))
 
     if not parquet_files:
         logging.warning("No parquet files to cache metadata from.")
