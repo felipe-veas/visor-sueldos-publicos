@@ -17,7 +17,15 @@ def render_kpis(result_df, calc_col):
     col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
     col_kpi1.metric("Registros", f"{count:,}".replace(",", "."))
-    col_kpi2.metric("Gasto Total (Mes)", format_clp(total_expense))
+
+    # Check if we're showing a single month or multiple records
+    # to display an accurate label for the total sum
+    if count == 1:
+        total_label = "Gasto Total (Mes)"
+    else:
+        total_label = "Gasto Total (Acumulado)"
+
+    col_kpi2.metric(total_label, format_clp(total_expense))
     col_kpi3.metric("Promedio", format_clp(average))
     col_kpi4.metric("Sueldo Máximo", format_clp(maximum))
 
@@ -136,9 +144,16 @@ def render_data_table(result_df):
     if rows_list:
         row_idx = rows_list[0]
         selected_row = display_df.iloc[row_idx]
-        # Allow checking if the row comes from the Senate
-        if selected_row.get("origen") == "Senado" or "Senado" in str(
-            selected_row.get("organismo_nombre")
+        # Allow checking if the row comes from the Senate or Camara
+        origen = str(selected_row.get("origen", "")).lower()
+        organismo = str(selected_row.get("organismo_nombre", "")).lower()
+        if (
+            "senado" in origen
+            or "senado" in organismo
+            or "cámara" in origen
+            or "camara" in origen
+            or "cámara" in organismo
+            or "camara" in organismo
         ):
             render_gastos_detalle(selected_row)
 
@@ -178,20 +193,30 @@ def render_gastos_detalle(selected_row):
         "expenses requested", extra={"person": llave, "year": anyo, "month": mes_str}
     )
 
-    gastos_path = os.path.join("data", "gastos_detalle.parquet")
-    if not os.path.exists(gastos_path):
+    import glob
+
+    gastos_files = glob.glob(
+        os.path.join("data", "parquet", "*_gastos_detalle.parquet")
+    )
+
+    if not gastos_files:
         return
 
-    query = f"""
-        SELECT gastos_operacionales AS Concepto, sum(monto) as Monto
-        FROM read_parquet('{gastos_path}')
-        WHERE anyo = ? AND Mes = ? AND llave_senador = ?
-        GROUP BY gastos_operacionales
-        ORDER BY Monto DESC
-    """
+    selects = []
+    for f in gastos_files:
+        selects.append(f"""
+            SELECT gastos_operacionales AS Concepto, sum(monto) as Monto
+            FROM read_parquet('{f}')
+            WHERE anyo = ? AND Mes = ? AND llave_senador = ?
+            GROUP BY gastos_operacionales
+        """)
+
+    query = " UNION ALL ".join(selects)
+    query = f"SELECT Concepto, sum(Monto) as Monto FROM ({query}) GROUP BY Concepto ORDER BY Monto DESC"
 
     try:
-        df_detalle = duckdb.query(query, params=[anyo, mes_num, llave]).to_df()
+        full_params = [anyo, mes_num, llave] * len(gastos_files)
+        df_detalle = duckdb.query(query, params=full_params).to_df()
     except Exception as e:
         logger.error(
             "expenses query failed",
@@ -204,7 +229,19 @@ def render_gastos_detalle(selected_row):
     st.subheader(
         f":material/search: Desglose de Gastos Operacionales ({mes_str} {anyo})"
     )
-    st.markdown(f"**Senador(a):** {llave}")
+
+    # Adapt title depending on where it came from
+    origen = str(selected_row.get("origen", "")).lower()
+    organismo = str(selected_row.get("organismo_nombre", "")).lower()
+    if (
+        "cámara" in origen
+        or "camara" in origen
+        or "cámara" in organismo
+        or "camara" in organismo
+    ):
+        st.markdown(f"**Diputado(a):** {llave}")
+    else:
+        st.markdown(f"**Senador(a):** {llave}")
 
     if df_detalle.empty:
         logger.info("expenses query completed", extra={"person": llave, "found": False})

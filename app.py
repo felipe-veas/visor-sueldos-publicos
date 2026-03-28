@@ -233,6 +233,8 @@ if search_clicked:
     progress_bar.empty()
     st.session_state["search_results"] = result_df
     st.session_state["last_person"] = person_name_input
+    # Clear any previous selection if any (though dataframe component handles its own state)
+    st.session_state.pop("selected_profile", None)
 
 # Always display results if they exist in session state
 if "search_results" in st.session_state:
@@ -245,7 +247,81 @@ if "search_results" in st.session_state:
                 ":material/warning: Se muestran los primeros 500 resultados. Por favor, refine su búsqueda."
             )
 
-        process_and_display_results(result_df)
+        # DISAMBIGUATION LOGIC
+        # Find distinct people based on name to see if we need to disambiguate
+        import pandas as pd
+
+        group_cols = ["Nombres", "Paterno", "Materno"]
+        temp_df = result_df.copy()
+
+        # Ensure columns exist and fill NAs for grouping
+        for col in group_cols:
+            if col not in temp_df.columns:
+                temp_df[col] = ""
+            temp_df[col] = temp_df[col].fillna("").astype(str).str.strip()
+
+        profiles = (
+            temp_df.groupby(group_cols)
+            .agg(
+                {
+                    "organismo_nombre": lambda x: " | ".join(
+                        pd.Series.unique(x.dropna().astype(str))
+                    ),
+                    "cargo": lambda x: " | ".join(
+                        pd.Series.unique(x.dropna().astype(str))
+                    ),
+                }
+            )
+            .reset_index()
+        )
+
+        if len(profiles) > 1:
+            st.info(
+                ":material/group: **Se encontraron múltiples personas con nombres similares.** Por favor, selecciona la persona que buscas en la tabla a continuación:"
+            )
+
+            selection = st.dataframe(
+                profiles,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                column_config={
+                    "Nombres": "Nombres",
+                    "Paterno": "Apellido Paterno",
+                    "Materno": "Apellido Materno",
+                    "organismo_nombre": "Organismos Asociados",
+                    "cargo": "Cargos Registrados",
+                },
+                use_container_width=True,
+                key="disambiguation_table",
+            )
+
+            sel_dict = selection.get("selection", {}) if selection else {}
+            rows_list = sel_dict.get("rows", []) if sel_dict else []
+
+            if rows_list:
+                row_idx = rows_list[0]
+                selected_profile = profiles.iloc[row_idx]
+
+                # Filter original dataframe
+                cond = pd.Series(True, index=temp_df.index)
+                for col in group_cols:
+                    cond &= temp_df[col] == selected_profile[col]
+
+                filtered_df = result_df[cond].copy()
+
+                st.markdown("---")
+                st.markdown(
+                    f"### Resultados para: **{selected_profile['Nombres']} {selected_profile['Paterno']} {selected_profile['Materno']}**"
+                )
+                process_and_display_results(filtered_df)
+            else:
+                st.caption(
+                    "👈 Haz clic en una fila de la tabla superior para ver los sueldos y desglose de esa persona."
+                )
+        else:
+            # Only one person found, display directly
+            process_and_display_results(result_df)
     else:
         st.info("No se encontraron resultados con esos filtros.")
 
