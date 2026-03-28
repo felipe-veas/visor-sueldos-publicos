@@ -5,9 +5,7 @@ DATA_DIR = "data"
 # Instead of local files, the app now points directly to the static GitHub Release URLs.
 # This makes the web application 100% stateless (requires zero disk space).
 # GitHub Releases allow up to 2GB per file and infinite bandwidth.
-GITHUB_RELEASE_BASE_URL = (
-    "https://github.com/fveas/visor-sueldos-publicos/releases/download/latest-data"
-)
+GITHUB_RELEASE_BASE_URL = "https://github.com/felipe-veas/visor-sueldos-publicos/releases/download/latest-data"
 
 METADATA_FILE = os.path.join(DATA_DIR, "metadata_cache.json")
 
@@ -37,6 +35,11 @@ DATASETS_CONFIG = {
         "url": "https://www.consejotransparencia.cl/transparencia_activa/datoabierto/archivos/TA_PersonalContratohonorarios.csv",
         "filename": "TA_PersonalContratohonorarios.parquet",
         "path": resolve_data_path("TA_PersonalContratohonorarios.parquet"),
+    },
+    "Senado y Asignaciones": {
+        "url": "",
+        "filename": "senado_consolidado.parquet",
+        "path": resolve_data_path("senado_consolidado.parquet"),
     },
 }
 

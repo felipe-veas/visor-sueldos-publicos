@@ -37,12 +37,22 @@ jobs:
           # and generates the metadata_cache.json
           uv run src/etl/sync.py
 
+      - name: Set current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "latest-data"
-          name: "Latest Public Salary Data"
-          body: "Automated data sync via DuckDB. Contains the latest Parquet files and metadata."
+          name: "latest-data"
+          body: |
+            ## latest-data (${{ steps.date.outputs.date }})
+
+            ### Data Sync
+
+            * automated data sync via DuckDB
+            * contains the latest Parquet files and metadata
           files: |
             data/*.parquet
             data/metadata_cache.json

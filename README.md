@@ -1,15 +1,15 @@
 # Visor de Sueldos Públicos de Chile 🇨🇱
 
-Este repositorio contiene herramientas Python para descargar, unificar, auditar y visualizar datos de Transparencia Activa de instituciones públicas chilenas.
+Este repositorio contiene herramientas Python para descargar, unificar, auditar y visualizar datos de Transparencia Activa de instituciones públicas chilenas (Actualmente Consejo para la Transparencia y Senado de la República).
 
-El sistema utiliza DuckDB y Parquet para consultar más de 28GB de datos en milisegundos. Está diseñado para ejecutarse sin infraestructura backend dedicada.
+El sistema utiliza DuckDB y Parquet para consultar más de 28GB de datos en milisegundos. Está diseñado para ejecutarse sin infraestructura backend dedicada, haciendo consultas HTTP Range sobre archivos estáticos.
 
 ## Características Principales
 
-- 📥 **Smart Sync**: Consulta los servidores de transparencia y descarga archivos solo cuando los headers remotos indican cambios, reduciendo el uso de ancho de banda.
-- ⚡️ **Motor de Consultas**: Convierte 28GB de CSVs crudos a archivos `.parquet` con compresión ZSTD. Utiliza DuckDB para consultas en memoria.
-- ☁️ **Despliegue Stateless**: Arquitectura de 3 capas (MVC) diseñada para entornos contenerizados. Utiliza `httpfs` para lectura remota de archivos.
-- 📊 **Interfaz Web**: Frontend en Streamlit para filtrar salarios por institución, año y mes.
+- 📥 **Smart Sync**: Consulta los servidores de transparencia y descarga archivos solo cuando los headers remotos indican cambios, reduciendo el uso de ancho de banda. Extractor especializado para la API del Senado.
+- ⚡️ **Motor de Consultas**: Convierte 28GB de CSVs y respuestas JSON crudas a archivos `.parquet` con compresión ZSTD. Utiliza DuckDB para consultas en memoria.
+- ☁️ **Despliegue Stateless**: Arquitectura diseñada para entornos contenerizados Serverless. Utiliza la extensión `httpfs` de DuckDB para lectura remota de archivos directamente desde GitHub Releases.
+- 📊 **Interfaz Web**: Frontend en Streamlit para filtrar salarios por institución, año, mes y buscar personas con compatibilidad para tildes y caracteres especiales (ñ).
 - 🕵️ **Auditoría de Datos**: Detecta multiempleo, posible nepotismo (coincidencia de apellidos) y anomalías salariales.
 
 ## Estructura del Proyecto
@@ -19,16 +19,26 @@ visor-sueldos-publicos/
 ├── app.py                      # Entrypoint y router de Streamlit
 ├── Dockerfile                  # Imagen Docker multi-stage
 ├── uv.lock / pyproject.toml    # Gestión de dependencias
+├── scripts/                    # Scripts de ejecución manual
+│   └── run_senado_extractor.py # Orquestador del scraping del Senado
+├── docs/                       # Documentación técnica
+│   └── api-analysis-senate.md  # Análisis de arquitectura API del Senado
 ├── src/
 │   ├── core/                   # Lógica de negocio y base de datos
+│   │   ├── api_client.py       # Cliente HTTP con retries y backoff (Tenacity)
 │   │   ├── config.py           # Configuración y URLs
-│   │   └── queries.py          # Consultas SQL en DuckDB
+│   │   ├── logger.py           # Logging estructurado
+│   │   └── queries.py          # Consultas SQL en DuckDB (Soporte Ñ/Tildes)
 │   ├── etl/                    # Pipeline de datos
-│   │   ├── sync.py             # Lógica de sincronización HTTP HEAD
-│   │   └── ingest.py           # Transformación de CSV a Parquet
+│   │   ├── ingest.py           # Transformación de CSV a Parquet
+│   │   ├── senado_processor.py # Limpieza y cruce de datos del Senado (Pandas)
+│   │   ├── senado_scraper.py   # Extracción paginada desde API REST
+│   │   └── sync.py             # Lógica de sincronización HTTP HEAD (CPLT)
+│   ├── audits/                 # Módulos de auditoría
+│   │   └── audit_utils.py      # Lógica de detección de anomalías
 │   └── ui/                     # Interfaz de usuario
 │       └── views.py            # Componentes Streamlit y gráficos Plotly
-└── .github/workflows/          # Pipelines CI/CD (Ruff, Pytest, Releases)
+└── .github/workflows/          # Pipelines CI/CD (Ruff, Data Sync)
 ```
 
 ## Desarrollo Local
@@ -37,18 +47,21 @@ Utilizamos `uv` para gestionar dependencias y asegurar builds rápidos y determi
 
 ### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-usuario/visor-sueldos-publicos.git
+git clone https://github.com/felipe-veas/visor-sueldos-publicos.git
 cd visor-sueldos-publicos
 ```
 
-### 2. Ejecutar el Pipeline ETL
-Debes procesar los datos públicos antes de levantar el frontend. El script de sincronización descarga los CSVs oficiales y los comprime a Parquet.
+### 2. Ejecutar los Pipelines ETL
+Debes procesar los datos públicos antes de levantar el frontend localmente (si no quieres usar los datos remotos por defecto).
 
 ```bash
-# Instalar dependencias y ejecutar la sincronización
-uv run src/etl/sync.py
+# Sincronizar datos del Consejo para la Transparencia (Archivos CSV masivos)
+uv run python src/etl/sync.py
+uv run python src/etl/ingest.py
+
+# Extraer y procesar datos del Senado de la República (API REST)
+uv run python scripts/run_senado_extractor.py
 ```
-*(Nota: La descarga inicial de 28GB tomará tiempo dependiendo de tu conexión. Las ejecuciones posteriores toman milisegundos si los datos remotos no han cambiado).*
 
 ### 3. Levantar la Aplicación Web
 ```bash
@@ -66,29 +79,27 @@ docker run -p 8501:8501 visor-sueldos
 
 ## Arquitectura Serverless (GitHub Releases)
 
-Por defecto, la aplicación lee del directorio local `data/`. Para ejecutarla sin volúmenes de almacenamiento dedicados, la aplicación hace fallback a URLs estáticas alojadas en GitHub Releases.
+Por defecto, la aplicación **no requiere almacenamiento local** (`data/`). Para ejecutarse en plataformas Serverless, la aplicación hace fallback a URLs estáticas alojadas en GitHub Releases (`latest-data`).
 
-1. El workflow `.github/workflows/data-sync.yml` se ejecuta semanalmente, empaqueta los archivos Parquet y los publica como un GitHub Release.
-2. Si la aplicación se ejecuta sin un directorio `data/` local, DuckDB realiza HTTP Range Requests contra las URLs del GitHub Release, obteniendo solo los bytes necesarios para la consulta.
+1. El workflow `.github/workflows/data-sync.yml` se ejecuta periódicamente, orquesta los scrapers, empaqueta los archivos Parquet y los publica como un GitHub Release.
+2. DuckDB realiza HTTP Range Requests contra las URLs del GitHub Release, obteniendo solo los bytes necesarios para la consulta SQL, logrando tiempos de respuesta de milisegundos sin descargar los archivos completos.
 
 ## Pruebas y Linter
 
 Ejecuta la suite de validación localmente:
 
 ```bash
-# Linter
+# Linter (Ruff)
 uv run ruff check .
-
-# Pruebas unitarias
-uv run pytest tests/
 ```
 
 ## Contribución
 
 1. Haz un Fork del repositorio.
 2. Crea una rama para tu feature (`git checkout -b feature/nueva-regla-auditoria`).
-3. Haz commit de tus cambios y verifícalos con `ruff`.
-4. Abre un Pull Request.
+3. Haz commit de tus cambios (Asegúrate de que el código backend esté en inglés y la UI en español).
+4. Verifica con `uv run ruff check .`.
+5. Abre un Pull Request.
 
 ## Licencia
 
