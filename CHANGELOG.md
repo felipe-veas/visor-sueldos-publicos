@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.6.0...v0.7.0) (2026-03-28)
+
+
+### Features
+
+* implement Chamber of Deputies extraction pipeline ([96436c1](https://github.com/felipe-veas/visor-sueldos-publicos/commit/96436c1ef5b7febbf0bf428e20e66f1b2bff5db2))
+* integrate Chamber of Deputies data pipeline ([f4f5207](https://github.com/felipe-veas/visor-sueldos-publicos/commit/f4f52077d94c145825949fd5f20ee33abf4aca7f))
+
+
+### Documentation
+
+* add technical analysis for Chamber of Deputies ([9d629ac](https://github.com/felipe-veas/visor-sueldos-publicos/commit/9d629ac531f4ca18803970079db50587505c9ae0))
+
 ## [0.6.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.5.0...v0.6.0) (2026-03-28)
 
 
