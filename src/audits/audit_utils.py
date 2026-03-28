@@ -66,7 +66,7 @@ def generate_unified_sql(valid_paths):
 
 
 def render_audit_ui(data_dir, urls_config):
-    st.header("🕵️ Auditoría Civil de Anomalías")
+    st.header(":material/policy: Auditoría Civil de Anomalías")
     st.markdown(
         "Herramientas avanzadas para detectar patrones sospechosos en el gasto público cruzando todas las bases de datos."
     )
@@ -86,15 +86,15 @@ def render_audit_ui(data_dir, urls_config):
 
     if len(paths) < 2:
         st.warning(
-            "⚠️ Se recomienda descargar todas las bases de datos (Planta, Contrata, Honorarios) en el modo 'Explorador' para una auditoría completa."
+            ":material/warning: Se recomienda descargar todas las bases de datos (Planta, Contrata, Honorarios) en el modo 'Explorador' para una auditoría completa."
         )
 
     tab1, tab2, tab3, tab4 = st.tabs(
         [
-            "🔄 Multiempleo",
-            "💰 Ranking Nacional",
-            "👨‍👩‍👧‍👦 Apellidos (Nepotismo)",
-            "📈 Sueldos Atípicos",
+            ":material/sync: Multiempleo",
+            ":material/emoji_events: Ranking Nacional",
+            ":material/family_restroom: Apellidos (Nepotismo)",
+            ":material/trending_up: Sueldos Atípicos",
         ]
     )
 
@@ -127,7 +127,7 @@ def render_audit_ui(data_dir, urls_config):
             "Busca personas que aparecen recibiendo sueldo en **más de un organismo** en el mismo mes."
         )
 
-        if st.button("🔍 Escanear Multiempleo"):
+        if st.button(":material/search: Escanear Multiempleo"):
             with st.spinner("Cruzando bases de datos..."):
                 base_sql, params = generate_unified_sql(paths)
                 if not base_sql:
@@ -166,7 +166,7 @@ def render_audit_ui(data_dir, urls_config):
                             query, params=params + [audit_year, audit_month]
                         ).to_df()
                         if not df.empty:
-                            st.error(f"🚨 {len(df)} casos detectados.")
+                            st.error(f":material/warning: {len(df)} casos detectados.")
                             df["sueldo_total"] = df["sueldo_total"].apply(
                                 lambda x: (
                                     f"$ {x:,.0f}".replace(",", "X")
@@ -184,13 +184,13 @@ def render_audit_ui(data_dir, urls_config):
                                 },
                             )
                         else:
-                            st.success("✅ Sin hallazgos.")
+                            st.success(":material/check_circle: Sin hallazgos.")
                     except Exception as e:
                         st.error(f"Error: {e}")
 
     with tab2:
         st.subheader("Ranking Nacional de Sueldos")
-        if st.button("🏆 Generar Ranking"):
+        if st.button(":material/emoji_events: Generar Ranking"):
             with st.spinner("Analizando..."):
                 base_sql, params = generate_unified_sql(paths)
                 if base_sql:
@@ -226,7 +226,7 @@ def render_audit_ui(data_dir, urls_config):
 
         min_repeats = st.slider("Mínimo de personas con mismo apellido", 3, 50, 5)
 
-        if st.button("🔍 Buscar Clanes"):
+        if st.button(":material/search: Buscar Clanes"):
             with st.spinner("Agrupando apellidos..."):
                 base_sql, params = generate_unified_sql(paths)
                 if base_sql:
@@ -273,7 +273,7 @@ def render_audit_ui(data_dir, urls_config):
             "Detecta sueldos que se desvían más de **3 veces** del promedio de su estamento/función."
         )
 
-        if st.button("📈 Detectar Atípicos"):
+        if st.button(":material/trending_up: Detectar Atípicos"):
             with st.spinner("Calculando estadísticas por estamento..."):
                 base_sql, params = generate_unified_sql(paths)
                 if base_sql:

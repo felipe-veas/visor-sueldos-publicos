@@ -2,35 +2,24 @@ import streamlit as st
 import duckdb
 import pandas as pd
 import os
+import time
 import json
 import requests
+import unicodedata
 from src.core.config import METADATA_FILE
+from src.core.logger import get_logger
+
+logger = get_logger()
 
 
 def unaccent_lower_python(text: str) -> str:
     """Normalizes string to match search vector."""
+    if not text:
+        return ""
     text = text.lower()
-    replacements = {
-        "á": "a",
-        "é": "e",
-        "í": "i",
-        "ó": "o",
-        "ú": "u",
-        "à": "a",
-        "è": "e",
-        "ì": "i",
-        "ò": "o",
-        "ù": "u",
-        "ä": "a",
-        "ë": "e",
-        "ï": "i",
-        "ö": "o",
-        "ü": "u",
-        "ñ": "n",
-    }
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-    return text
+    # Handle decomposed characters (NFD) like Mac's "ñ" (n + \u0303)
+    # and strip all accents safely
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("utf-8")
 
 
 def load_cache() -> dict:
@@ -105,6 +94,7 @@ def quick_query(
     limit=500,
 ):
     """Queries the filtered data using Parquet with UNION ALL and Pagination."""
+    start_time = time.time()
     conditions = []
     query_params = []
 
@@ -162,15 +152,49 @@ def quick_query(
 
     full_params = query_params * len(paths_to_query)
 
+    logger.info(
+        "fetching parquet chunks via duckdb httpfs",
+        extra={
+            "sources_count": len(paths_to_query),
+            "urls": [source_path for _, source_path in paths_to_query],
+        },
+    )
+
     try:
-        return duckdb.query(final_query, params=full_params).to_df()
+        df = duckdb.query(final_query, params=full_params).to_df()
+        duration = time.time() - start_time
+        logger.info(
+            "search query completed",
+            extra={
+                "duration": round(duration, 5),
+                "org": organization if organization else "all",
+                "person": person_name if person_name else "none",
+                "years": f"{start_year}-{end_year}",
+                "month": month if month else "all",
+                "rows": len(df),
+                "status": "success",
+            },
+        )
+        return df
     except Exception as e:
+        duration = time.time() - start_time
+        logger.error(
+            "search query failed",
+            extra={
+                "duration": round(duration, 5),
+                "org": organization if organization else "all",
+                "person": person_name if person_name else "none",
+                "error": str(e).replace("\n", " "),
+                "status": "error",
+            },
+        )
         st.error(f"Error en la consulta: {e}")
         return pd.DataFrame()
 
 
 def get_last_record(paths_to_query, person_name):
     """Searches for the last available record of a person ignoring date filters."""
+    start_time = time.time()
     try:
         name_clean = unaccent_lower_python(person_name.strip())
         words = name_clean.split()
@@ -194,17 +218,55 @@ def get_last_record(paths_to_query, person_name):
         final_query = " UNION ALL ".join(selects) + " ORDER BY anyo DESC LIMIT 1"
         full_params = query_params * len(paths_to_query)
 
+        logger.info(
+            "fetching parquet chunks via duckdb httpfs (last record)",
+            extra={
+                "sources_count": len(paths_to_query),
+                "urls": [source_path for _, source_path in paths_to_query],
+            },
+        )
+
         df = duckdb.query(final_query, params=full_params).to_df()
+        duration = time.time() - start_time
 
         if not df.empty:
             reg = df.iloc[0]
+            logger.info(
+                "last record query completed",
+                extra={
+                    "duration": round(duration, 5),
+                    "person": person_name,
+                    "found": True,
+                    "status": "success",
+                },
+            )
             return {
                 "origen": reg["origen"],
                 "organismo": reg["organismo_nombre"],
                 "anyo": reg["anyo"],
                 "mes": reg["Mes"],
             }
+
+        logger.info(
+            "last record query completed",
+            extra={
+                "duration": round(duration, 5),
+                "person": person_name,
+                "found": False,
+                "status": "success",
+            },
+        )
         return None
 
-    except Exception:
+    except Exception as e:
+        duration = time.time() - start_time
+        logger.error(
+            "last record query failed",
+            extra={
+                "duration": round(duration, 5),
+                "person": person_name,
+                "error": str(e).replace("\n", " "),
+                "status": "error",
+            },
+        )
         return None

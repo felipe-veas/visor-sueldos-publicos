@@ -210,7 +210,6 @@ __marimo__/
 data/
 *.csv
 *.parquet
-IMPLEMENTATION_TRACKER.md
 
 # OS generated files
 .DS_Store
