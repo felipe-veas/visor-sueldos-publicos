@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.8.0...v0.8.1) (2026-05-15)
+
+
+### Dependencies
+
+* **deps-dev:** update ruff requirement from &gt;=0.15.8 to &gt;=0.15.10 ([3abfa73](https://github.com/felipe-veas/visor-sueldos-publicos/commit/3abfa73836d1ff978e755e3fe89fa6177a890047))
+
 ## [0.8.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.7.0...v0.8.0) (2026-03-28)
 
 
