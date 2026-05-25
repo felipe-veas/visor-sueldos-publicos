@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.8.1...v0.9.0) (2026-05-25)
+
+
+### Features
+
+* **etl:** improve extraction logic for Senate and Chamber of Deputies ([302e312](https://github.com/felipe-veas/visor-sueldos-publicos/commit/302e3128a5d1a18418cd59a4e1801e4229ad25d1))
+
+
+### Bug Fixes
+
+* **core:** fix resolve_data_path to use basename ([b6f6a34](https://github.com/felipe-veas/visor-sueldos-publicos/commit/b6f6a3473f7444c8801d47f85361c2af3d6f31fb))
+
 ## [0.8.1](https://github.com/felipe-veas/visor-sueldos-publicos/compare/v0.8.0...v0.8.1) (2026-05-15)
 
 
