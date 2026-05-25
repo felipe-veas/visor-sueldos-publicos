@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import datetime
 from core.api_client import SenadoAPIClient
 from tqdm import tqdm
 
@@ -10,7 +11,10 @@ logger = logging.getLogger("SenadoScraper")
 class SenadoScraper:
     def __init__(self, start_year=2022, end_year=2024, force_refresh=False):
         self.start_year = start_year
-        self.end_year = end_year
+        now = datetime.datetime.now()
+        self.current_year = now.year
+        self.current_month = now.month
+        self.end_year = min(end_year, self.current_year)
         self.force_refresh = force_refresh
         self.api_client = SenadoAPIClient(base_cache_dir="data/raw/senado")
         self.base_url = "https://web-back.senado.cl/api/transparency"
@@ -30,11 +34,15 @@ class SenadoScraper:
             f"== Starting extraction for {category_name} ({self.start_year}-{self.end_year}) =="
         )
 
-        total_months = (self.end_year - self.start_year + 1) * 12
+        total_months = 0
+        for y in range(self.start_year, self.end_year + 1):
+            total_months += self.current_month if y == self.current_year else 12
+
         pbar = tqdm(total=total_months, desc=category_name)
 
         for year in range(self.start_year, self.end_year + 1):
-            for month in range(1, 13):
+            max_month = self.current_month if year == self.current_year else 12
+            for month in range(1, max_month + 1):
                 pbar.set_postfix({"Year": year, "Month": f"{month:02d}"})
 
                 cache_path = self.api_client._get_cache_path(category_name, year, month)
