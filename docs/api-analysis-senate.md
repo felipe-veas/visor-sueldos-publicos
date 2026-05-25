@@ -1,80 +1,81 @@
-# Technical Architecture & API Analysis: Chilean Senate Transparency
+# API Analysis: Chilean Senate
 
-## 1. Executive Summary
+## Overview
 
-This document outlines the technical architecture of the Senate's transparency portal (`https://www.senado.cl/transparencia`) and details the strategy for programmatic data extraction, normalization, and analysis of financial records (remunerations, allowances, operational expenses, and per diems).
+This document details the extraction strategy for the Senate's transparency portal (`https://www.senado.cl/transparencia`). We target financial records including remunerations, allowances, operational expenses, and per diems.
 
-## 2. System Architecture
+## System Architecture
 
-* **Frontend:** Next.js (React) SPA. Client-side dynamic data hydration.
-* **Backend:** Headless CMS (Strapi or JSON:API enabled Drupal) resolving at `https://web-back.senado.cl/`.
-* **Extraction Strategy:** **Zero HTML scraping is required**. All tabular data is exposed via unauthenticated, public REST APIs returning structured JSON payloads. This ensures high data integrity and stable extraction pipelines.
+* **Frontend:** Next.js SPA utilizing client-side hydration.
+* **Backend:** Headless CMS (Strapi or Drupal) exposed at `https://web-back.senado.cl/`.
+* **Extraction:** The platform exposes tabular data via unauthenticated REST APIs. We consume structured JSON payloads directly, avoiding HTML scraping entirely. This reduces pipeline fragility.
 
-## 3. API Contract & Query Parameters
+## Query Parameters
 
-The REST APIs utilize a standard query parameter structure for filtering, sorting, and pagination.
+The API uses standard query parameters for filtering and pagination.
 
 **Base URL:** `https://web-back.senado.cl/api/transparency/`
 
-| Parameter | Type | Description | Example |
+| Parameter | Type | Purpose | Example |
 | :--- | :--- | :--- | :--- |
-| `filters[ano][$eq]` | Integer | Filters records by year. | `2024` |
-| `filters[mes][$eq]` | Integer | Filters records by month (1-12). | `1` |
-| `sort` | String | Comma-separated fields for sorting. | `appaterno,fecha_ida` |
-| `pagination[pageSize]`| Integer | Limits the response payload size. | `500` |
-| `pagination[page]` | Integer | Requests a specific page index. | `1` |
+| `filters[ano][$eq]` | Integer | Filter by year. | `2024` |
+| `filters[mes][$eq]` | Integer | Filter by month (1-12). | `1` |
+| `sort` | String | Sort order. | `appaterno,fecha_ida` |
+| `pagination[pageSize]`| Integer | Limit results per page. | `500` |
+| `pagination[page]` | Integer | Request specific page. | `1` |
 
-## 4. Core Endpoints (Financial Data)
+## Financial Endpoints
 
-These endpoints represent the primary sources for cross-referencing senatorial financial data.
+These endpoints provide the raw data required for financial aggregation.
 
-### 4.1. Parliamentary Allowances (Base Salary)
+### Base Salary (Dieta)
 * **Path:** `/diet`
-* **Schema Highlights:** `rut` (National ID), `nombre`, `appaterno`, `apmaterno`, `dieta` (gross), `deducciones`, `saldo` (net).
-* **Usage:** Provides the foundational baseline salary per senator and exposes the `rut` as the strongest Primary Key candidate.
+* **Schema:** `rut` (National ID), `nombre`, `appaterno`, `apmaterno`, `dieta` (gross), `deducciones`, `saldo` (net).
+* **Usage:** Establishes the base salary per senator. The `rut` field serves as the primary key for joins.
 
-### 4.2. Operational Expenses (Senators)
+### Operational Expenses
 * **Path:** `/expenses/senator-Operational-expenses`
-* **Schema Highlights:** `ano`, `mes`, `nombre`, `appaterno`, `gastos_operacionales` (enum-like categories e.g., "TELEFONIA CELULAR"), `monto`.
+* **Schema:** `ano`, `mes`, `nombre`, `appaterno`, `gastos_operacionales` (category), `monto`.
 
-### 4.3. Travel & Logistics
+### Travel
 * **Domestic Flights:** `/domestic-air-tickets`
-* **Foreign Missions:** `/foreign-missions` (Includes international per diems and flights).
+* **Foreign Missions:** `/foreign-missions` (Contains flights and international per diems).
 
-### 4.4. Executive & Committee Expenses
+### Committee and Executive Expenses
 * **Committees:** `/expenses/committee-operational-expenses`
-* **Presidency/Ex-Presidents:** `/president-vicepresident`, `/expenses/presidents-republic`.
+* **Presidency:** `/president-vicepresident`, `/expenses/presidents-republic`.
 
-## 5. Architectural Pivot: Remunerations vs. Dotations
+## Bypassing PDFs for Remuneration Data
 
-A critical architectural decision relies on avoiding the "Remuneraciones" frontend section, which relies on opaque PDF blobs.
+The frontend's "Remuneraciones" view renders opaque PDF blobs. We do not attempt to parse them.
 
-Instead, the pipeline **must** consume the "Dotación de Personal" (Staffing) JSON endpoints. These APIs expose the exact same salary data in machine-readable JSON formats, bypassing the need for complex OCR or PDF parsing heuristics.
+Instead, we target the "Dotación de Personal" (Staffing) JSON endpoints. These expose the same salary data in machine-readable JSON, eliminating the need for OCR.
 
-**Staffing Target Endpoints:**
-* **Contract:** `/dotation/staffing`
-* **Permanent:** `/dotation/plant-equipment`
-* **Fee-based:** `/dotation/fee`
+**Target Endpoints:**
+* **Contract Staff:** `/dotation/staffing`
+* **Permanent Staff:** `/dotation/plant-equipment`
+* **Fee-based Contractors:** `/dotation/fee`
 
-**Schema Highlights:** Name, Surnames, Rank (`Escalafón`), Position (`Cargo`), Category, and `remuneracion` (Salary).
+**Schema:** Name, Surnames, Rank (`Escalafón`), Position (`Cargo`), Category, and `remuneracion` (Salary).
 
-## 6. Implementation Strategy: ETL Pipeline
+## ETL Pipeline
 
-To calculate the Total Cost of Ownership (TCO) or financial footprint of a public figure, the ETL pipeline should execute the following steps:
+We execute the following steps to calculate total expenditures per senator:
 
-1. **Extraction (Scraper Bot):**
-   * Implement a polite HTTP client (e.g., `requests` with Tenacity for backoff).
-   * Iterate over the defined `[year, month]` matrix.
-   * Paginate through `/diet`, `/expenses/senator-Operational-expenses`, `/domestic-air-tickets`, and `/foreign-missions`.
+1. **Extraction:**
+   * Iterate over the required `[year, month]` ranges.
+   * Send HTTP GET requests to `/diet`, `/expenses/senator-Operational-expenses`, `/domestic-air-tickets`, and `/foreign-missions`.
+   * Implement retries with exponential backoff (e.g., using `tenacity`) to handle transient API failures.
+   * Paginate until exhaustion.
 
-2. **Transform & Link (Normalization):**
-   * **Primary Linking:** Rely on the `RUT` provided in the `/diet` endpoint.
-   * **Fuzzy Linking:** For endpoints lacking a `RUT`, generate a normalized search vector: `LOWER(UNACCENT(appaterno + apmaterno + nombre))`.
+2. **Normalization:**
+   * **Primary Key:** Join datasets using `RUT` where available (primarily from `/diet`).
+   * **Fuzzy Match:** When `RUT` is missing, generate a composite key using `LOWER(UNACCENT(appaterno + apmaterno + nombre))`.
 
-3. **Financial Aggregation:**
-   * Compute standard metrics per entity per month:
+3. **Aggregation:**
+   * Calculate the total monthly expenditure per senator:
      `Total_Cost = Gross_Allowance + SUM(Operational_Expenses) + SUM(Domestic_Flights) + SUM(International_Per_Diems)`
 
-4. **Storage (Data Lake/Warehouse):**
-   * Persist raw JSON payloads locally for auditability.
-   * Transform and load structured data into DuckDB/Parquet partitions optimized for analytical querying (OLAP) by the Streamlit frontend.
+4. **Storage:**
+   * Dump raw JSON payloads to local disk for auditability.
+   * Load the normalized data into DuckDB. Export as Parquet partitions to back the Streamlit frontend.

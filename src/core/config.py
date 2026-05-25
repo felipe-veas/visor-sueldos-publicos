@@ -15,7 +15,8 @@ def resolve_data_path(filename: str) -> str:
     local_path = os.path.join(DATA_DIR, filename)
     if os.path.exists(local_path):
         return local_path
-    return f"{GITHUB_RELEASE_BASE_URL}/{filename}"
+    basename = os.path.basename(filename)
+    return f"{GITHUB_RELEASE_BASE_URL}/{basename}"
 
 
 # Configuration for the datasets
